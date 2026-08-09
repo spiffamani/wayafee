@@ -1,0 +1,15 @@
+{
+  "name": "wayafee",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Guided FXRP on-ramp for remittance & savings on Flare, with atomic SplitRemit distribution",
+  "workspaces": [
+    "contracts",
+    "app"
+  ],
+  "scripts": {
+    "test": "npm run test --workspace contracts",
+    "build": "npm run build --workspace app",
+    "dev": "npm run dev --workspace app"
+  }
+}
