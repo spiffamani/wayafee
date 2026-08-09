@@ -1,0 +1,21 @@
+{
+  "name": "@wayafee/contracts",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:coston2": "hardhat run scripts/deploy.ts --network coston2",
+    "probe:coston2": "hardhat run scripts/probe-fassets.ts --network coston2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.26.0",
+    "typescript": "~5.6.3"
+  },
+  "dependencies": {
+    "@flarenetwork/flare-periphery-contracts": "^0.1.52",
+    "@openzeppelin/contracts": "^5.1.0"
+  }
+}
