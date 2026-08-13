@@ -142,6 +142,7 @@ export default function MintPage() {
           <StepPay
             reservation={state.reservation}
             onPaid={(xrplTxHash) => update({ ...state, step: 3, xrplTxHash })}
+          onRestart={restart}
           />
         )}
 

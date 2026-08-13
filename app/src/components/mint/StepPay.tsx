@@ -17,9 +17,11 @@ type Mode = "auto" | "manual";
 export function StepPay({
   reservation,
   onPaid,
+  onRestart,
 }: {
   reservation: Reservation;
   onPaid: (xrplTxHash: string) => void;
+  onRestart: () => void;
 }) {
   const drops = totalPaymentDrops(reservation);
   const xrpAmount = dropsToXrpString(drops);
@@ -36,16 +38,21 @@ export function StepPay({
   const [confirmedExact, setConfirmedExact] = useState(false);
 
   const [deadline, setDeadline] = useState<string>("");
+  const [expired, setExpired] = useState(false);
   useEffect(() => {
     const ts = Number(reservation.lastUnderlyingTimestamp);
     if (!Number.isFinite(ts) || ts === 0) return;
     const update = () => {
       const secondsLeft = Math.floor(ts - Date.now() / 1000);
-      setDeadline(
-        secondsLeft > 0
-          ? `${Math.floor(secondsLeft / 60)}m ${secondsLeft % 60}s left to pay`
-          : "Payment window may have expired — the reservation can default"
-      );
+      if (secondsLeft > 0) {
+        setExpired(false);
+        setDeadline(
+          `Pay now — ${Math.floor(secondsLeft / 60)}m ${secondsLeft % 60}s left. This is a deadline, not a wait.`
+        );
+      } else {
+        setExpired(true);
+        setDeadline("");
+      }
     };
     update();
     const id = setInterval(update, 1000);
@@ -96,7 +103,18 @@ export function StepPay({
           is locked. Send the amount below on XRPL testnet with the memo attached — both are
           generated, not typed.
         </p>
-        {deadline && <p className="msg-warn mt-3">{deadline}</p>}
+        {deadline && !expired && <p className="msg-warn mt-3">{deadline}</p>}
+        {expired && (
+          <div className="msg-warn mt-3 space-y-3">
+            <p>
+              Time ran out. That countdown was how long you had to send the XRP — you pay while it
+              ticks, you don’t wait for zero. This reservation can default now.
+            </p>
+            <button type="button" className="btn-primary" onClick={onRestart}>
+              Start a new mint
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl bg-surface-2 px-4 py-5 text-center">
@@ -163,7 +181,7 @@ export function StepPay({
           {error && <p className="msg-error">{error}</p>}
           <button
             className="btn-primary w-full"
-            disabled={!seed.trim() || busy !== null}
+            disabled={expired || !seed.trim() || busy !== null}
             onClick={autoPay}
           >
             {busy ?? `Send exactly ${xrpAmount} XRP`}
@@ -196,7 +214,7 @@ export function StepPay({
           {error && <p className="msg-error">{error}</p>}
           <button
             className="btn-primary w-full"
-            disabled={!/^[0-9a-fA-F]{64}$/.test(manualTx) || !confirmedExact}
+            disabled={expired || !/^[0-9a-fA-F]{64}$/.test(manualTx) || !confirmedExact}
             onClick={() => onPaid(manualTx)}
           >
             Continue to verification

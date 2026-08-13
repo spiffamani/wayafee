@@ -21,8 +21,33 @@ const CATALOG: { name: string; install: string; keys: string[] }[] = [
   { name: "Zerion", install: "https://zerion.io/extension", keys: ["zerion"] },
 ];
 
-function friendlyError(raw: string) {
+function asMessage(err: unknown): string {
+  if (err == null) return "";
+  if (typeof err === "string") return err;
+  if (err instanceof Error) {
+    const extra = err as Error & { shortMessage?: string; details?: string; cause?: unknown };
+    const fromCause = extra.cause != null && extra.cause !== err ? asMessage(extra.cause) : "";
+    return extra.shortMessage || extra.message || fromCause || extra.details || "";
+  }
+  if (typeof err === "object") {
+    const o = err as Record<string, unknown>;
+    if (typeof o.shortMessage === "string" && o.shortMessage) return o.shortMessage;
+    if (typeof o.message === "string" && o.message) return o.message;
+    if (typeof o.details === "string" && o.details) return o.details;
+    if (o.cause != null) return asMessage(o.cause);
+  }
+  return "";
+}
+
+function friendlyError(err: unknown) {
+  const raw = asMessage(err);
+  if (!raw || raw === "[object Object]") {
+    return "Couldn’t finish connecting. Open MetaMask (fox icon) and approve, or try again.";
+  }
   const m = raw.toLowerCase();
+  if (m.includes("already pending") || m.includes("request of type")) {
+    return "You already clicked Connect. Check your wallet (fox icon in Chrome) and approve — don’t click Connect again.";
+  }
   if (m.includes("provider not found")) {
     return "That wallet isn’t in this browser yet. Install it, refresh, then search again.";
   }
@@ -53,6 +78,8 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
   const [query, setQuery] = useState("");
   const [busyName, setBusyName] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [alreadyClicked, setAlreadyClicked] = useState(false);
+  const [copied, setCopied] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -71,6 +98,15 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!isConnected) return;
+    setOpen(false);
+    setLocalError(null);
+    setBusyName(null);
+    setAlreadyClicked(false);
+    reset();
+  }, [isConnected, reset]);
+
   const q = query.trim().toLowerCase();
   const rows = useMemo(() => {
     const fromCatalog = CATALOG.map((w) => ({
@@ -84,30 +120,42 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
     return [...fromCatalog, ...extras].filter((w) => !q || w.name.toLowerCase().includes(q));
   }, [connectors, q]);
 
-  const shownError =
-    localError ?? (error ? friendlyError(error.message) : null) ??
-    (switchError ? friendlyError(switchError.message) : null);
+  const shownError = busyName
+    ? null
+    : localError ?? (error ? friendlyError(error) : null) ??
+      (switchError ? friendlyError(switchError) : null);
+  const alreadyWaiting =
+    alreadyClicked ||
+    (shownError?.toLowerCase().includes("already clicked") ?? false);
 
-  async function connectNamed(name: string, connector: Connector | undefined, install: string) {
+  async function connectNamed(name: string, connector: Connector | undefined) {
+    if (alreadyWaiting || busyName) {
+      setAlreadyClicked(true);
+      setLocalError(
+        "You already clicked Connect. Check your wallet (fox icon in Chrome) and approve — don’t click Connect again."
+      );
+      setOpen(true);
+      return;
+    }
     setLocalError(null);
     reset();
     const target =
-      connector ?? connectors.find((c) => c.id === "injected") ?? connectors[0];
+      connector ??
+      (name === "MetaMask" ? findConnector(connectors, ["metamask"]) : undefined) ??
+      connectors.find((c) => c.id === "injected");
     if (!target) {
-      if (install) window.open(install, "_blank", "noopener,noreferrer");
       setLocalError("Install that wallet, refresh this page, then search for it again.");
       return;
     }
+    setAlreadyClicked(true);
     setBusyName(name);
     try {
       await connectAsync({ connector: target, chainId: coston2.id });
       setOpen(false);
     } catch (e) {
-      const msg = friendlyError(e instanceof Error ? e.message : String(e));
-      if (msg.toLowerCase().includes("isn’t in this browser") && install) {
-        window.open(install, "_blank", "noopener,noreferrer");
-      }
+      const msg = friendlyError(e);
       setLocalError(msg);
+      if (msg.toLowerCase().includes("cancelled")) setAlreadyClicked(false);
     } finally {
       setBusyName(null);
     }
@@ -117,6 +165,7 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
   const waiting = isPending || busyName !== null;
 
   if (isConnected && chainId !== coston2.id) {
+    const switchMsg = switchError ? friendlyError(switchError) : null;
     return (
       <div className={wide ? "w-full" : ""}>
         <button
@@ -127,21 +176,37 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
         >
           {switching ? "Switching…" : "Switch to Coston2"}
         </button>
-        {shownError && <p className="msg-error mt-2 text-left">{shownError}</p>}
+        {switchMsg && !switchMsg.toLowerCase().includes("already clicked") && (
+          <p className="msg-error mt-2 text-left">{switchMsg}</p>
+        )}
       </div>
     );
   }
 
   if (isConnected) {
     return (
-      <button
-        type="button"
-        className={`btn-ghost mono ${wide ? "w-full" : "px-3 min-h-10 sm:min-h-12 text-sm"}`}
-        onClick={() => disconnect()}
-        title="Disconnect"
-      >
-        {shortAddr(address!)}
-      </button>
+      <div className={`flex items-center gap-2 ${wide ? "w-full flex-col sm:flex-row" : ""}`}>
+        <button
+          type="button"
+          className={`btn-ghost mono ${wide ? "w-full sm:flex-1" : "px-3 min-h-10 sm:min-h-12 text-sm"}`}
+          onClick={async () => {
+            if (!address) return;
+            await navigator.clipboard.writeText(address);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+          }}
+          title="Copy full address"
+        >
+          {copied ? "Copied" : shortAddr(address!)}
+        </button>
+        <button
+          type="button"
+          className="shrink-0 text-xs font-bold text-muted underline"
+          onClick={() => disconnect()}
+        >
+          Disconnect
+        </button>
+      </div>
     );
   }
 
@@ -150,8 +215,14 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
       <button
         type="button"
         className={`btn-primary ${wide ? "w-full" : "px-4 min-h-10 sm:min-h-12 text-sm"}`}
-        disabled={waiting}
         onClick={() => {
+          if (alreadyWaiting || waiting) {
+            setOpen(true);
+            setLocalError(
+              "You already clicked Connect. Check your wallet (fox icon in Chrome) and approve — don’t click Connect again."
+            );
+            return;
+          }
           setLocalError(null);
           reset();
           setOpen((v) => !v);
@@ -173,9 +244,11 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
             onChange={(e) => setQuery(e.target.value)}
           />
 
-          {busyName && (
+          {(busyName || alreadyWaiting) && (
             <p className="msg-warn mb-2">
-              Approve in {busyName} — check the popup, or the wallet icon in the Chrome toolbar.
+              {alreadyWaiting && !busyName
+                ? "You already clicked Connect. Check your wallet and approve — don’t click Connect again."
+                : `Check ${busyName}. Approve in the wallet popup. Don’t click Connect again.`}
             </p>
           )}
 
@@ -185,8 +258,8 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
                 key={w.name}
                 type="button"
                 className="wallet-row"
-                disabled={waiting}
-                onClick={() => void connectNamed(w.name, w.connector, w.install)}
+                disabled={waiting || alreadyWaiting}
+                onClick={() => void connectNamed(w.name, w.connector)}
               >
                 <span>{w.name}</span>
                 <span className="text-xs font-bold text-muted">
@@ -199,11 +272,11 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
             )}
           </div>
 
-          {shownError && <p className="msg-error mt-3">{shownError}</p>}
+          {shownError && <p className="msg-warn mt-3">{shownError}</p>}
         </div>
       )}
 
-      {!open && shownError && wide && <p className="msg-error mt-3">{shownError}</p>}
+      {!open && shownError && wide && <p className="msg-warn mt-3">{shownError}</p>}
     </div>
   );
 }

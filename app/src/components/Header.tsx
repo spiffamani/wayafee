@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandMark } from "@/components/Brand";
 import { ConnectWallet } from "@/components/ConnectWallet";
+import { WalletBalances } from "@/components/WalletBalances";
 
 export function Header() {
   const pathname = usePathname();
@@ -52,7 +53,10 @@ export function Header() {
             })}
           </nav>
         </div>
-        <ConnectWallet />
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <WalletBalances dark={home} />
+          <ConnectWallet />
+        </div>
       </div>
     </header>
   );
