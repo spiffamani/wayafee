@@ -6,11 +6,7 @@ import type { Connector } from "wagmi";
 import { coston2 } from "@/lib/chain";
 import { shortAddr } from "@/lib/format";
 
-const CATALOG: {
-  name: string;
-  install: string;
-  keys: string[];
-}[] = [
+const CATALOG: { name: string; install: string; keys: string[] }[] = [
   { name: "MetaMask", install: "https://metamask.io/download/", keys: ["metamask"] },
   { name: "SafePal", install: "https://www.safepal.com/download", keys: ["safepal"] },
   { name: "Rabby", install: "https://rabby.io", keys: ["rabby"] },
@@ -28,7 +24,7 @@ const CATALOG: {
 function friendlyError(raw: string) {
   const m = raw.toLowerCase();
   if (m.includes("provider not found")) {
-    return "That wallet isn’t available here. Install it, refresh, then connect.";
+    return "That wallet isn’t in this browser yet. Install it, refresh, then search again.";
   }
   if (m.includes("rejected") || m.includes("denied") || m.includes("user rejected")) {
     return "Cancelled in the wallet. Open it and try again.";
@@ -43,19 +39,8 @@ function blob(c: Connector) {
   return `${c.id} ${c.name}`.toLowerCase();
 }
 
-function matchCatalog(c: Connector) {
-  const b = blob(c);
-  return CATALOG.find((w) => w.keys.some((k) => b.includes(k)));
-}
-
-function pickInstalled(connectors: readonly Connector[], ethereumPresent: boolean) {
-  const named = connectors.filter((c) => c.id !== "injected");
-  if (named.length > 0) return named;
-  if (ethereumPresent) {
-    const injected = connectors.find((c) => c.id === "injected");
-    return injected ? [injected] : [];
-  }
-  return [];
+function findConnector(connectors: readonly Connector[], keys: string[]) {
+  return connectors.find((c) => keys.some((k) => blob(c).includes(k)));
 }
 
 export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
@@ -66,29 +51,10 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [busyName, setBusyName] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [ethereumPresent, setEthereumPresent] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const read = () => {
-      setEthereumPresent(Boolean((window as Window & { ethereum?: unknown }).ethereum));
-    };
-    read();
-    const t1 = window.setTimeout(read, 250);
-    const t2 = window.setTimeout(read, 1000);
-    const t3 = window.setTimeout(read, 2500);
-    window.addEventListener("ethereum#initialized", read);
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
-      window.removeEventListener("ethereum#initialized", read);
-    };
-  }, []);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -105,45 +71,50 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
     }
   }, [open]);
 
-  const installed = useMemo(
-    () => pickInstalled(connectors, ethereumPresent),
-    [connectors, ethereumPresent]
-  );
-
   const q = query.trim().toLowerCase();
-
-  const installedRows = installed.filter((c) => {
-    const label = matchCatalog(c)?.name ?? (c.name === "Injected" ? "Browser wallet" : c.name);
-    return !q || label.toLowerCase().includes(q) || blob(c).includes(q);
-  });
-
-  const catalogRows = CATALOG.filter((w) => {
-    const already = installed.some((c) => matchCatalog(c)?.name === w.name);
-    if (already) return false;
-    return !q || w.name.toLowerCase().includes(q);
-  });
+  const rows = useMemo(() => {
+    const fromCatalog = CATALOG.map((w) => ({
+      name: w.name,
+      install: w.install,
+      connector: findConnector(connectors, w.keys),
+    }));
+    const extras = connectors
+      .filter((c) => c.id !== "injected" && !CATALOG.some((w) => findConnector([c], w.keys)))
+      .map((c) => ({ name: c.name, install: "", connector: c }));
+    return [...fromCatalog, ...extras].filter((w) => !q || w.name.toLowerCase().includes(q));
+  }, [connectors, q]);
 
   const shownError =
     localError ?? (error ? friendlyError(error.message) : null) ??
     (switchError ? friendlyError(switchError.message) : null);
 
-  async function connectOne(connector: Connector) {
+  async function connectNamed(name: string, connector: Connector | undefined, install: string) {
     setLocalError(null);
     reset();
-    setBusyId(connector.id);
-    setBusyName(matchCatalog(connector)?.name ?? connector.name);
+    const target =
+      connector ?? connectors.find((c) => c.id === "injected") ?? connectors[0];
+    if (!target) {
+      if (install) window.open(install, "_blank", "noopener,noreferrer");
+      setLocalError("Install that wallet, refresh this page, then search for it again.");
+      return;
+    }
+    setBusyName(name);
     try {
-      await connectAsync({ connector, chainId: coston2.id });
+      await connectAsync({ connector: target, chainId: coston2.id });
       setOpen(false);
     } catch (e) {
-      setLocalError(friendlyError(e instanceof Error ? e.message : String(e)));
+      const msg = friendlyError(e instanceof Error ? e.message : String(e));
+      if (msg.toLowerCase().includes("isn’t in this browser") && install) {
+        window.open(install, "_blank", "noopener,noreferrer");
+      }
+      setLocalError(msg);
     } finally {
-      setBusyId(null);
       setBusyName(null);
     }
   }
 
   const wide = size === "lg";
+  const waiting = isPending || busyName !== null;
 
   if (isConnected && chainId !== coston2.id) {
     return (
@@ -179,69 +150,51 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
       <button
         type="button"
         className={`btn-primary ${wide ? "w-full" : "px-4 min-h-10 sm:min-h-12 text-sm"}`}
-        disabled={isPending || busyId !== null}
+        disabled={waiting}
         onClick={() => {
           setLocalError(null);
           reset();
           setOpen((v) => !v);
         }}
       >
-        {isPending || busyId ? "Connecting…" : wide ? "Connect wallet" : "Connect"}
+        {waiting ? "Connecting…" : wide ? "Connect wallet" : "Connect"}
       </button>
 
       {open && (
         <div className="wallet-pop">
           <p className="px-1 text-[11px] font-bold uppercase tracking-wide text-muted">
-            Choose a wallet
+            Search a wallet
           </p>
           <input
             ref={searchRef}
             className="input mt-2 mb-2 min-h-10 text-sm"
-            placeholder="Search MetaMask, SafePal, Rabby…"
+            placeholder="Type MetaMask, SafePal, Rabby…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
 
           {busyName && (
             <p className="msg-warn mb-2">
-              Approve in {busyName} — check the popup, or the fox / wallet icon in the Chrome
-              toolbar.
+              Approve in {busyName} — check the popup, or the wallet icon in the Chrome toolbar.
             </p>
           )}
 
           <div className="wallet-list">
-            {installedRows.map((c) => {
-              const label = matchCatalog(c)?.name ?? (c.name === "Injected" ? "Browser wallet" : c.name);
-              return (
-                <button
-                  key={c.uid}
-                  type="button"
-                  className="wallet-row"
-                  disabled={busyId !== null}
-                  onClick={() => void connectOne(c)}
-                >
-                  <span>{label}</span>
-                  <span className="text-xs font-bold text-ledger">
-                    {busyId === c.id ? "Waiting…" : "Installed"}
-                  </span>
-                </button>
-              );
-            })}
-
-            {catalogRows.map((w) => (
-              <a
+            {rows.map((w) => (
+              <button
                 key={w.name}
+                type="button"
                 className="wallet-row"
-                href={w.install}
-                target="_blank"
-                rel="noreferrer"
+                disabled={waiting}
+                onClick={() => void connectNamed(w.name, w.connector, w.install)}
               >
                 <span>{w.name}</span>
-                <span className="text-xs font-bold text-muted">Get</span>
-              </a>
+                <span className="text-xs font-bold text-muted">
+                  {busyName === w.name ? "Waiting…" : "Connect"}
+                </span>
+              </button>
             ))}
-
-            {installedRows.length === 0 && catalogRows.length === 0 && (
+            {rows.length === 0 && (
               <p className="px-2 py-3 text-sm text-muted">No wallet matches “{query}”.</p>
             )}
           </div>
