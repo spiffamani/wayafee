@@ -32,7 +32,6 @@ export function StepPay({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Manual mode
   const [manualTx, setManualTx] = useState("");
   const [confirmedExact, setConfirmedExact] = useState(false);
 
@@ -88,69 +87,63 @@ export function StepPay({
   }
 
   return (
-    <div className="card p-6 space-y-6">
+    <div className="card space-y-6 p-5 sm:p-7">
       <div>
-        <h2 className="font-semibold text-lg">Pay the exact XRP amount</h2>
-        <p className="text-sm text-gray-400 mt-1">
-          Your reservation is locked on Flare (
-          <span className="mono">id {reservation.collateralReservationId}</span>). Now send{" "}
-          <span className="text-white font-semibold">{xrpAmount} XRP</span> on the XRPL testnet
-          with the payment reference attached. Both are generated — never typed by hand.
+        <h2 className="text-xl font-extrabold">Send this exact amount</h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted">
+          Reservation{" "}
+          <span className="mono font-semibold text-ink">#{reservation.collateralReservationId}</span>{" "}
+          is locked. Send the amount below on XRPL testnet with the memo attached — both are
+          generated, not typed.
         </p>
-        {deadline && <p className="text-xs text-amber mt-2">{deadline}</p>}
+        {deadline && <p className="msg-warn mt-3">{deadline}</p>}
       </div>
 
-      <div className="grid sm:grid-cols-[1fr_auto] gap-6 items-start">
+      <div className="rounded-2xl bg-surface-2 px-4 py-5 text-center">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Amount due</p>
+        <p className="amount mt-2 text-4xl sm:text-5xl">{xrpAmount}</p>
+        <p className="mt-1 text-sm font-semibold text-muted">XRP</p>
+      </div>
+
+      <div className="grid items-start gap-6 sm:grid-cols-[1fr_auto]">
         <div className="space-y-3">
-          <CopyField label="Destination (agent's XRPL address)" value={reservation.paymentAddress} />
+          <CopyField label="Destination (agent XRPL address)" value={reservation.paymentAddress} />
           <CopyField
-            label={`Amount — exactly ${xrpAmount} XRP (${drops.toString()} drops)`}
+            label={`Amount — exactly ${xrpAmount} XRP`}
             value={xrpAmount}
             warn="underpaying forfeits the reservation"
           />
           <CopyField
             label="Payment reference — attach as memo (hex)"
             value={memo}
-            warn="wrong/missing memo = failed mint"
+            warn="wrong or missing memo = failed mint"
           />
         </div>
-        <div className="bg-white p-3 rounded-xl mx-auto">
-          <QRCode value={reservation.paymentAddress} size={140} />
-          <p className="text-[10px] text-gray-600 text-center mt-1 max-w-[140px]">
-            destination address only — amount &amp; memo must match exactly
+        <div className="mx-auto rounded-2xl bg-white p-3">
+          <QRCode value={reservation.paymentAddress} size={132} />
+          <p className="mt-2 max-w-[132px] text-center text-[10px] leading-snug text-muted">
+            Address only. Amount and memo still have to match.
           </p>
         </div>
       </div>
 
-      <div className="flex gap-2 border-b border-line">
-        {(
-          [
-            ["auto", "Auto-pay (testnet seed)"],
-            ["manual", "I paid with my own wallet"],
-          ] as [Mode, string][]
-        ).map(([m, label]) => (
-          <button
-            key={m}
-            className={`px-4 py-2 text-sm -mb-px border-b-2 transition-colors ${
-              mode === m
-                ? "border-flare text-white"
-                : "border-transparent text-gray-500 hover:text-white"
-            }`}
-            onClick={() => setMode(m)}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="seg">
+        <button type="button" data-on={mode === "auto"} onClick={() => setMode("auto")}>
+          Auto-pay (test seed)
+        </button>
+        <button type="button" data-on={mode === "manual"} onClick={() => setMode("manual")}>
+          I paid myself
+        </button>
       </div>
 
       {mode === "auto" ? (
         <div className="space-y-4">
-          <p className="text-sm text-gray-400">
-            Paste an XRPL <strong>testnet</strong> seed. It signs locally in your browser and is
-            never sent anywhere. The payment goes out with the exact amount and memo above — no way
-            to get either wrong.
+          <p className="text-sm leading-relaxed text-muted">
+            Paste an XRPL <strong className="text-ink">testnet</strong> seed. It signs in this
+            browser and never leaves the machine. Payment goes out with the exact amount and memo
+            above.
           </p>
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <input
               className="input mono"
               type="password"
@@ -158,12 +151,16 @@ export function StepPay({
               value={seed}
               onChange={(e) => setSeed(e.target.value)}
             />
-            <button className="btn-ghost whitespace-nowrap" onClick={fund} disabled={funding}>
+            <button
+              className="btn-ghost whitespace-nowrap"
+              onClick={fund}
+              disabled={funding}
+            >
               {funding ? "Funding…" : "New funded test wallet"}
             </button>
           </div>
-          {fundedInfo && <p className="text-xs text-mint">{fundedInfo}</p>}
-          {error && <p className="text-sm text-red-400 break-all">{error}</p>}
+          {fundedInfo && <p className="msg-ok">{fundedInfo}</p>}
+          {error && <p className="msg-error">{error}</p>}
           <button
             className="btn-primary w-full"
             disabled={!seed.trim() || busy !== null}
@@ -174,10 +171,9 @@ export function StepPay({
         </div>
       ) : (
         <div className="space-y-4">
-          <p className="text-sm text-gray-400">
-            Sent it from Xaman (testnet mode) or another XRPL wallet? Paste the transaction hash.
-            The Flare Data Connector will verify the amount and reference on-chain — nothing is
-            taken on trust.
+          <p className="text-sm leading-relaxed text-muted">
+            Paid from Xaman (testnet) or another XRPL wallet? Paste the transaction hash. Flare
+            checks amount and reference on-chain — nothing is taken on trust.
           </p>
           <input
             className="input mono"
@@ -185,17 +181,19 @@ export function StepPay({
             value={manualTx}
             onChange={(e) => setManualTx(e.target.value.trim())}
           />
-          <label className="flex items-start gap-2 text-sm text-gray-300">
+          <label className="flex items-start gap-3 text-sm text-ink">
             <input
               type="checkbox"
-              className="mt-1"
+              className="mt-1 h-4 w-4 accent-[var(--color-flare)]"
               checked={confirmedExact}
               onChange={(e) => setConfirmedExact(e.target.checked)}
             />
-            I sent <strong>exactly {xrpAmount} XRP</strong> to the address above with the memo
-            attached — not less, not more.
+            <span>
+              I sent <strong>exactly {xrpAmount} XRP</strong> to the address above with the memo
+              attached — not less, not more.
+            </span>
           </label>
-          {error && <p className="text-sm text-red-400 break-all">{error}</p>}
+          {error && <p className="msg-error">{error}</p>}
           <button
             className="btn-primary w-full"
             disabled={!/^[0-9a-fA-F]{64}$/.test(manualTx) || !confirmedExact}
@@ -205,12 +203,12 @@ export function StepPay({
           </button>
           {manualTx && /^[0-9a-fA-F]{64}$/.test(manualTx) && (
             <a
-              className="text-xs text-flare underline"
+              className="inline-block text-xs font-semibold text-flare underline"
               href={`${XRPL_EXPLORER}/transactions/${manualTx}`}
               target="_blank"
               rel="noreferrer"
             >
-              view on XRPL testnet explorer ↗
+              View on XRPL testnet explorer
             </a>
           )}
         </div>

@@ -1,84 +1,58 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
-import { coston2 } from "@/lib/chain";
-import { shortAddr } from "@/lib/format";
-
-function ConnectButton() {
-  const { address, isConnected, chainId } = useAccount();
-  const { connect, connectors, isPending } = useConnect();
-  const { disconnect } = useDisconnect();
-  const { switchChain, isPending: switching } = useSwitchChain();
-
-  if (!isConnected) {
-    return (
-      <button
-        className="btn-primary text-sm"
-        disabled={isPending}
-        onClick={() => connect({ connector: connectors[0] })}
-      >
-        {isPending ? "Connecting…" : "Connect wallet"}
-      </button>
-    );
-  }
-
-  if (chainId !== coston2.id) {
-    return (
-      <button
-        className="btn-primary text-sm bg-amber-600"
-        disabled={switching}
-        onClick={() => switchChain({ chainId: coston2.id })}
-      >
-        {switching ? "Switching…" : "Switch to Coston2"}
-      </button>
-    );
-  }
-
-  return (
-    <button className="btn-ghost text-sm mono" onClick={() => disconnect()} title="Disconnect">
-      {shortAddr(address!)}
-    </button>
-  );
-}
+import { BrandMark } from "@/components/Brand";
+import { ConnectWallet } from "@/components/ConnectWallet";
 
 export function Header() {
   const pathname = usePathname();
+  const home = pathname === "/";
   const nav = [
     { href: "/", label: "Home" },
-    { href: "/mint", label: "Mint FXRP" },
-    { href: "/split", label: "SplitRemit" },
+    { href: "/mint", label: "Mint" },
+    { href: "/split", label: "Split" },
   ];
+
   return (
-    <header className="border-b border-line/80 sticky top-0 z-20 backdrop-blur bg-ink/80">
-      <div className="mx-auto max-w-5xl px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="font-bold text-lg tracking-tight">
+    <header
+      className={`sticky top-0 z-30 border-b backdrop-blur-md ${
+        home ? "header-home" : "border-line bg-bg/90"
+      }`}
+    >
+      <div className="page-inner flex h-14 items-center justify-between gap-3 sm:h-16">
+        <div className="flex min-w-0 items-center gap-8">
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2 font-display text-lg font-extrabold tracking-tight sm:text-xl"
+          >
+            <BrandMark />
             waya<span className="text-flare">fee</span>
           </Link>
-          <nav className="flex gap-1 text-sm">
-            {nav.map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${
-                  pathname === n.href
-                    ? "bg-panel-2 text-white"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                {n.label}
-              </Link>
-            ))}
+          <nav className="hidden items-center gap-1 text-sm font-semibold md:flex">
+            {nav.map((n) => {
+              const on = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
+              return (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  className={`rounded-full px-3.5 py-2 transition-colors ${
+                    on
+                      ? home
+                        ? "bg-white/10 text-cream"
+                        : "bg-surface text-ink"
+                      : home
+                        ? "text-cream/70 hover:text-cream"
+                        : "text-muted hover:text-ink"
+                  }`}
+                >
+                  {n.label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="hidden sm:inline text-xs px-2 py-1 rounded-full border border-line text-gray-400">
-            Coston2 testnet
-          </span>
-          <ConnectButton />
-        </div>
+        <ConnectWallet />
       </div>
     </header>
   );

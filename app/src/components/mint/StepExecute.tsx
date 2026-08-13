@@ -58,27 +58,27 @@ export function StepExecute({
   }
 
   return (
-    <div className="card p-6 space-y-6">
+    <div className="card space-y-6 p-5 sm:p-7">
       <div>
-        <h2 className="font-semibold text-lg">Proof ready — execute your mint</h2>
-        <p className="text-sm text-gray-400 mt-1">
-          Flare has verified your XRP payment. One final transaction hands the proof to the
-          AssetManager and your FXRP is minted to your Flare address.
+        <h2 className="text-xl font-extrabold">Proof is ready. Mint it.</h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted">
+          Flare verified the XRP payment. One last transaction hands the proof to the AssetManager
+          and FXRP is minted to this wallet.
         </p>
       </div>
 
-      <div className="text-sm space-y-1">
-        <div className="flex justify-between">
-          <span className="text-gray-400">Reservation</span>
-          <span className="mono">#{reservation.collateralReservationId}</span>
+      <dl>
+        <div className="ledger-row">
+          <dt>Reservation</dt>
+          <dd className="mono">#{reservation.collateralReservationId}</dd>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Verified in voting round</span>
-          <span className="mono">{proof.response.votingRound}</span>
+        <div className="ledger-row">
+          <dt>Voting round</dt>
+          <dd className="mono">{proof.response.votingRound}</dd>
         </div>
-      </div>
+      </dl>
 
-      {error && <p className="text-sm text-red-400 break-all">{error}</p>}
+      {error && <p className="msg-error">{error}</p>}
 
       <button className="btn-primary w-full" disabled={busy !== null} onClick={execute}>
         {busy ?? "Execute mint"}

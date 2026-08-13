@@ -22,23 +22,23 @@ type SubStep = "verify" | "request" | "round" | "proof";
 const SUBSTEPS: { id: SubStep; label: string; note: string }[] = [
   {
     id: "verify",
-    label: "XRPL payment picked up by Flare's verifiers",
+    label: "XRPL payment picked up by Flare’s verifiers",
     note: "usually well under a minute after the ledger closes",
   },
   {
     id: "request",
-    label: "Attestation requested on Flare (small fee, one wallet confirmation)",
-    note: "paid to FdcHub — this is what makes the proof verifiable on-chain",
+    label: "Attestation requested on Flare",
+    note: "small fee, one wallet confirmation — this is what makes the proof verifiable",
   },
   {
     id: "round",
     label: "Voting round finalizing",
-    note: "honest expectation: 90–180 seconds — this page keeps polling, no need to refresh",
+    note: "honest wait: 90–180 seconds. This page keeps polling.",
   },
   {
     id: "proof",
     label: "Merkle proof published",
-    note: "fetched from Flare's data availability layer",
+    note: "fetched from Flare’s data availability layer",
   },
 ];
 
@@ -73,13 +73,14 @@ export function StepAttest({
     };
 
     try {
-      // 1. verifier prepareRequest (retry while the tx gains confirmations)
       let abiEncodedRequest = progress.abiEncodedRequest;
       setActive("verify");
       if (!abiEncodedRequest) {
         for (let attempt = 1; ; attempt++) {
           try {
-            setDetail(attempt === 1 ? "Contacting verifier…" : `Waiting for confirmations (attempt ${attempt})…`);
+            setDetail(
+              attempt === 1 ? "Contacting verifier…" : `Waiting for confirmations (attempt ${attempt})…`
+            );
             const prepared = await prepareGuarded(xrplTxHash);
             abiEncodedRequest = prepared.abiEncodedRequest;
             break;
@@ -92,7 +93,6 @@ export function StepAttest({
       }
       markDone("verify");
 
-      // 2. requestAttestation on FdcHub
       let requestTx = progress.attestationRequestTx;
       setActive("request");
       if (!requestTx) {
@@ -118,7 +118,6 @@ export function StepAttest({
       }
       markDone("request");
 
-      // 3. voting round id from the request tx block timestamp
       let votingRoundId = progress.votingRoundId;
       setActive("round");
       if (votingRoundId === undefined) {
@@ -154,7 +153,6 @@ export function StepAttest({
       }
       markDone("round");
 
-      // 4. proof from DA layer
       setActive("proof");
       for (let attempt = 1; ; attempt++) {
         setDetail(attempt === 1 ? "Fetching proof…" : `Proof not published yet (attempt ${attempt})…`);
@@ -183,21 +181,21 @@ export function StepAttest({
   }, []);
 
   return (
-    <div className="card p-6 space-y-6">
+    <div className="card space-y-6 p-5 sm:p-7">
       <div>
-        <h2 className="font-semibold text-lg">Flare is verifying your XRP payment</h2>
-        <p className="text-sm text-gray-400 mt-1">
-          The Flare Data Connector independently checks your{" "}
+        <h2 className="text-xl font-extrabold">Flare is checking the payment</h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted">
+          The Data Connector independently checks your{" "}
           <a
-            className="text-flare underline"
+            className="font-semibold text-flare underline"
             href={`${XRPL_EXPLORER}/transactions/${xrplTxHash}`}
             target="_blank"
             rel="noreferrer"
           >
             XRPL transaction
           </a>{" "}
-          — amount, destination and reference — and produces a proof the mint contract can trust.
-          This takes minutes, not seconds. That&apos;s normal; we show you exactly where it is.
+          — amount, destination, reference — and produces a proof the mint contract can trust. This
+          takes minutes. That’s normal.
         </p>
       </div>
 
@@ -208,19 +206,23 @@ export function StepAttest({
           return (
             <li key={s.id} className="flex gap-3">
               <span
-                className={`mt-0.5 w-6 h-6 shrink-0 rounded-full border flex items-center justify-center text-xs font-bold ${
+                className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-extrabold ${
                   isDone
-                    ? "bg-mint/15 border-mint/50 text-mint"
+                    ? "border-ledger bg-ledger-dim text-ledger"
                     : isActive
                       ? "border-flare text-flare pulse-soft"
-                      : "border-line text-gray-600"
+                      : "border-line text-muted"
                 }`}
               >
                 {isDone ? "✓" : isActive ? "●" : "○"}
               </span>
-              <div>
-                <p className={isDone || isActive ? "text-white" : "text-gray-500"}>{s.label}</p>
-                <p className="text-xs text-gray-500">{isActive && detail ? detail : s.note}</p>
+              <div className="min-w-0">
+                <p className={`text-sm font-bold ${isDone || isActive ? "text-ink" : "text-muted"}`}>
+                  {s.label}
+                </p>
+                <p className="text-xs leading-relaxed text-muted">
+                  {isActive && detail ? detail : s.note}
+                </p>
               </div>
             </li>
           );
@@ -229,8 +231,8 @@ export function StepAttest({
 
       {error && (
         <div className="space-y-3">
-          <p className="text-sm text-red-400 break-all">{error}</p>
-          <button className="btn-primary" onClick={() => void run()}>
+          <p className="msg-error">{error}</p>
+          <button className="btn-primary w-full sm:w-auto" onClick={() => void run()}>
             Retry from where it stopped
           </button>
         </div>

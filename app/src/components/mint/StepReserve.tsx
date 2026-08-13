@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { assetManagerAbi } from "@/lib/abis";
 import { ADDRESSES, EXPLORER } from "@/lib/chain";
+import { ConnectWallet } from "@/components/ConnectWallet";
 import { pickAgent, parseReservation, type AgentOption, type Reservation } from "@/lib/fassets";
 import { formatFxrp, formatUnitsFixed, shortAddr } from "@/lib/format";
 
@@ -67,8 +68,8 @@ export function StepReserve({ onReserved }: { onReserved: (r: Reservation) => vo
         args: [
           agent.agentVault,
           BigInt(lots),
-          agent.feeBIPS, // maxMintingFeeBIPS = agent's published fee (front-run guard)
-          "0x0000000000000000000000000000000000000000", // self-execute, no executor
+          agent.feeBIPS,
+          "0x0000000000000000000000000000000000000000",
         ],
         value: crf,
       });
@@ -87,94 +88,108 @@ export function StepReserve({ onReserved }: { onReserved: (r: Reservation) => vo
 
   if (!isConnected) {
     return (
-      <div className="card p-6 text-center text-gray-400">
-        Connect your Flare (EVM) wallet above to begin. You&apos;ll also need C2FLR for gas and the
-        reservation fee —{" "}
-        <a
-          className="text-flare underline"
-          href="https://faucet.flare.network/coston2"
-          target="_blank"
-          rel="noreferrer"
-        >
-          get free testnet C2FLR here
-        </a>
-        .
+      <div className="card space-y-5 p-6 sm:p-10">
+        <div>
+          <h2 className="display-serif text-3xl font-semibold sm:text-4xl">Connect to mint</h2>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
+            Use MetaMask on Coston2. You’ll need a little C2FLR for gas and the reservation fee.{" "}
+            <a
+              className="font-semibold text-flare underline"
+              href="https://faucet.flare.network/coston2"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Grab testnet C2FLR here
+            </a>
+            .
+          </p>
+        </div>
+        <ConnectWallet size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="card p-6 space-y-6">
+    <div className="card space-y-6 p-5 sm:p-7">
       <div>
-        <h2 className="font-semibold text-lg">Reserve collateral</h2>
-        <p className="text-sm text-gray-400 mt-1">
-          An agent locks collateral for your mint. FXRP is minted in lots
-          {lotSize !== undefined && <> of {formatFxrp(lotSize)} XRP</>}. Wayafee picks the cheapest
-          live agent with room for your order.
+        <h2 className="text-xl font-extrabold">How much are you minting?</h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted">
+          FXRP mints in lots
+          {lotSize !== undefined && <> of {formatFxrp(lotSize)} XRP</>}. We pick the cheapest live
+          agent with room for your order.
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <label className="text-xs uppercase tracking-wide text-gray-500">Lots to mint</label>
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div className="space-y-3">
+          <label className="text-[11px] font-bold uppercase tracking-wide text-muted">Lots</label>
           <div className="flex items-center gap-3">
-            <button className="btn-ghost px-4" onClick={() => setLots((l) => Math.max(1, l - 1))}>
+            <button
+              className="btn-ghost min-h-12 w-12 px-0 text-xl"
+              onClick={() => setLots((l) => Math.max(1, l - 1))}
+              aria-label="Fewer lots"
+            >
               −
             </button>
-            <span className="text-2xl font-bold w-12 text-center">{lots}</span>
-            <button className="btn-ghost px-4" onClick={() => setLots((l) => l + 1)}>
+            <span className="amount w-16 text-center text-4xl">{lots}</span>
+            <button
+              className="btn-ghost min-h-12 w-12 px-0 text-xl"
+              onClick={() => setLots((l) => l + 1)}
+              aria-label="More lots"
+            >
               +
             </button>
           </div>
           {valueUBA !== undefined && (
-            <p className="text-sm text-gray-400">
-              = <span className="text-white font-medium">{formatFxrp(valueUBA)} FXRP</span> minted
-              to your Flare address
+            <p className="text-sm text-muted">
+              You’ll mint{" "}
+              <span className="font-extrabold text-ink">{formatFxrp(valueUBA)} FXRP</span> to this
+              wallet.
             </p>
           )}
         </div>
 
         <div className="space-y-2 text-sm">
-          <label className="text-xs uppercase tracking-wide text-gray-500">Selected agent</label>
+          <label className="text-[11px] font-bold uppercase tracking-wide text-muted">
+            Selected agent
+          </label>
           {agentsLoading ? (
-            <p className="text-gray-400 pulse-soft">Scanning live agents…</p>
+            <p className="text-muted pulse-soft">Scanning live agents…</p>
           ) : agent ? (
-            <div className="space-y-1">
-              <p className="mono">{shortAddr(agent.agentVault, 8)}</p>
-              <p className="text-gray-400">
+            <div className="rounded-2xl bg-surface-2 p-4">
+              <p className="mono text-sm font-semibold">{shortAddr(agent.agentVault, 8)}</p>
+              <p className="mt-1 text-muted">
                 Fee {Number(agent.feeBIPS) / 100}% · {agent.freeCollateralLots.toString()} lots free
               </p>
             </div>
           ) : (
-            <p className="text-amber">
+            <p className="msg-warn">
               No agent currently has {lots} free lot{lots > 1 ? "s" : ""}. Try fewer lots.
             </p>
           )}
         </div>
       </div>
 
-      <div className="border-t border-line pt-4 space-y-1 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-400">You will pay on XRPL (estimate)</span>
-          <span className="font-medium">
+      <div className="space-y-1 border-t border-line pt-4 text-sm">
+        <div className="ledger-row">
+          <dt>You pay on XRPL (est.)</dt>
+          <dd>
             {valueUBA !== undefined && estFeeUBA !== undefined
               ? `${formatFxrp(valueUBA + estFeeUBA)} XRP`
               : "—"}
-          </span>
+          </dd>
         </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Reservation fee (Flare, non-refundable)</span>
-          <span className="font-medium">
-            {crf !== undefined ? `${formatUnitsFixed(crf, 18, 4)} C2FLR` : "—"}
-          </span>
+        <div className="ledger-row">
+          <dt>Reservation fee (Flare, kept)</dt>
+          <dd>{crf !== undefined ? `${formatUnitsFixed(crf, 18, 4)} C2FLR` : "—"}</dd>
         </div>
-        <p className="text-xs text-gray-500 pt-1">
-          The exact XRPL amount is fixed on-chain by the reservation and shown on the next screen —
-          you never guess it.
+        <p className="pt-2 text-xs text-muted">
+          The exact XRPL amount is fixed on-chain by the reservation. Next screen shows it — you
+          never guess.
         </p>
       </div>
 
-      {error && <p className="text-sm text-red-400 break-all">{error}</p>}
+      {error && <p className="msg-error">{error}</p>}
 
       <button
         className="btn-primary w-full"

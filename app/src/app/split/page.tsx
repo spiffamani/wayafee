@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { isAddress, zeroAddress } from "viem";
+import { PageShell } from "@/components/Brand";
+import { ConnectWallet } from "@/components/ConnectWallet";
 import {
   useAccount,
   usePublicClient,
@@ -17,8 +19,6 @@ import { formatFxrp, parseFxrp, shortAddr } from "@/lib/format";
 const SPLIT_REMIT = ADDRESSES.splitRemit;
 const configured = SPLIT_REMIT !== zeroAddress;
 
-// ---------------------------------------------------------------- contacts
-
 function ContactsPanel({
   contacts,
   setContacts,
@@ -30,28 +30,29 @@ function ContactsPanel({
   const [address, setAddress] = useState("");
 
   return (
-    <div className="card p-6 space-y-4">
+    <div className="card space-y-4 p-5 sm:p-6">
       <div>
-        <h2 className="font-semibold">Saved contacts</h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Stored only in this browser — no backend, by design.
-        </p>
+        <h2 className="text-lg font-extrabold">Saved contacts</h2>
+        <p className="mt-1 text-xs text-muted">Stored in this browser only — no backend, on purpose.</p>
       </div>
       <div className="space-y-2">
         {contacts.length === 0 && (
-          <p className="text-sm text-gray-500">No contacts yet. Add the people you send to.</p>
+          <p className="text-sm text-muted">Nobody yet. Add the people you send to.</p>
         )}
         {contacts.map((c) => (
-          <div key={c.address} className="flex items-center justify-between text-sm">
-            <div>
-              <p className="font-medium">{c.name}</p>
-              <p className="mono text-xs text-gray-500">{shortAddr(c.address, 8)}</p>
+          <div
+            key={c.address}
+            className="flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-3 py-3"
+          >
+            <div className="min-w-0">
+              <p className="font-bold">{c.name}</p>
+              <p className="mono truncate text-xs text-muted">{shortAddr(c.address, 8)}</p>
             </div>
             <button
-              className="text-xs text-gray-500 hover:text-red-400"
+              className="shrink-0 text-xs font-semibold text-danger"
               onClick={() => setContacts(contacts.filter((x) => x.address !== c.address))}
             >
-              remove
+              Remove
             </button>
           </div>
         ))}
@@ -64,7 +65,7 @@ function ContactsPanel({
           onChange={(e) => setName(e.target.value)}
         />
         <input
-          className="input text-sm mono"
+          className="input mono text-sm"
           placeholder="Flare address 0x…"
           value={address}
           onChange={(e) => setAddress(e.target.value.trim())}
@@ -88,8 +89,6 @@ function ContactsPanel({
     </div>
   );
 }
-
-// ------------------------------------------------------------- create plan
 
 function CreatePlanPanel({
   contacts,
@@ -116,7 +115,6 @@ function CreatePlanPanel({
       setBusy("Confirm in wallet…");
       const recipients = selected.map((c) => c.address);
       const bps = selected.map((c) => Math.round(Number(shares[c.address]) * 100));
-      // fix rounding: force sum to exactly 10000 on the first entry
       const sum = bps.reduce((a, b) => a + b, 0);
       bps[0] += 10_000 - sum;
       const hash = await writeContractAsync({
@@ -139,11 +137,11 @@ function CreatePlanPanel({
   }
 
   return (
-    <div className="card p-6 space-y-4">
+    <div className="card space-y-4 p-5 sm:p-6">
       <div>
-        <h2 className="font-semibold">New split plan</h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Percentages must total 100. Saved on-chain — reusable for every future mint.
+        <h2 className="text-lg font-extrabold">New split plan</h2>
+        <p className="mt-1 text-xs text-muted">
+          Percentages must total 100. Saved on-chain — reuse it after every mint.
         </p>
       </div>
       <input
@@ -153,12 +151,12 @@ function CreatePlanPanel({
         onChange={(e) => setPlanName(e.target.value)}
       />
       {contacts.length === 0 ? (
-        <p className="text-sm text-gray-500">Add contacts first.</p>
+        <p className="text-sm text-muted">Add contacts first.</p>
       ) : (
         <div className="space-y-2">
           {contacts.map((c) => (
             <div key={c.address} className="flex items-center gap-3 text-sm">
-              <span className="flex-1">{c.name}</span>
+              <span className="min-w-0 flex-1 truncate font-semibold">{c.name}</span>
               <input
                 className="input w-24 text-right"
                 type="number"
@@ -169,27 +167,25 @@ function CreatePlanPanel({
                 value={shares[c.address] ?? ""}
                 onChange={(e) => setShares({ ...shares, [c.address]: e.target.value })}
               />
-              <span className="text-gray-500 w-4">%</span>
+              <span className="w-4 text-muted">%</span>
             </div>
           ))}
           <p
-            className={`text-xs text-right ${
-              Math.abs(totalPct - 100) < 1e-9 ? "text-mint" : "text-amber"
+            className={`text-right text-xs font-bold ${
+              Math.abs(totalPct - 100) < 1e-9 ? "text-ledger" : "text-amber"
             }`}
           >
             total {totalPct}%
           </p>
         </div>
       )}
-      {error && <p className="text-sm text-red-400 break-all">{error}</p>}
+      {error && <p className="msg-error">{error}</p>}
       <button className="btn-primary w-full" disabled={!valid || busy !== null} onClick={create}>
         {busy ?? "Save plan on-chain"}
       </button>
     </div>
   );
 }
-
-// ------------------------------------------------------------- plans list
 
 interface PlanView {
   id: bigint;
@@ -283,8 +279,8 @@ function ExecutePanel({
   }
 
   return (
-    <div className="space-y-3 border-t border-line pt-4 mt-4">
-      <div className="flex items-center gap-3">
+    <div className="mt-4 space-y-3 border-t border-line pt-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           className="input text-sm"
           placeholder="Amount of FXRP to split"
@@ -293,7 +289,7 @@ function ExecutePanel({
         />
         {balance !== undefined && (
           <button
-            className="text-xs text-flare whitespace-nowrap underline"
+            className="shrink-0 text-xs font-bold text-flare underline"
             onClick={() => setAmount(formatFxrp(balance))}
           >
             max {formatFxrp(balance)}
@@ -301,23 +297,23 @@ function ExecutePanel({
         )}
       </div>
       {preview && (
-        <div className="text-xs text-gray-400 space-y-1">
+        <div className="space-y-1 text-sm">
           {plan.recipients.map((r, i) => (
-            <div key={r} className="flex justify-between">
-              <span>
+            <div key={r} className="flex justify-between gap-3">
+              <span className="min-w-0 truncate text-muted">
                 {nameOf(r)} · {plan.sharesBps[i] / 100}%
               </span>
-              <span className="mono">{formatFxrp(preview[i])} FXRP</span>
+              <span className="mono shrink-0 font-bold">{formatFxrp(preview[i])} FXRP</span>
             </div>
           ))}
         </div>
       )}
-      {error && <p className="text-sm text-red-400 break-all">{error}</p>}
+      {error && <p className="msg-error">{error}</p>}
       {doneTx && (
-        <p className="text-sm text-mint">
+        <p className="msg-ok">
           Split executed —{" "}
           <a className="underline" href={`${EXPLORER}/tx/${doneTx}`} target="_blank" rel="noreferrer">
-            view transaction ↗
+            view transaction
           </a>
         </p>
       )}
@@ -326,13 +322,11 @@ function ExecutePanel({
         disabled={parsed === null || parsed === 0n || busy !== null}
         onClick={execute}
       >
-        {busy ?? "Split now (one atomic transaction)"}
+        {busy ?? "Split now (one transaction)"}
       </button>
     </div>
   );
 }
-
-// ------------------------------------------------------------------ page
 
 export default function SplitPage() {
   const { address, isConnected } = useAccount();
@@ -383,68 +377,87 @@ export default function SplitPage() {
     void refetchPlans();
   };
 
-  if (!configured) {
-    return (
-      <div className="card p-8 text-center space-y-3 max-w-xl mx-auto">
-        <h1 className="text-xl font-bold">SplitRemit not deployed yet</h1>
-        <p className="text-sm text-gray-400">
-          Deploy the contract (<span className="mono">npm run deploy:coston2 -w contracts</span>)
-          and set <span className="mono">NEXT_PUBLIC_SPLITREMIT_ADDRESS</span> in{" "}
-          <span className="mono">app/.env.local</span>.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
+    <PageShell className="space-y-6 py-6 sm:space-y-8 sm:py-10">
       <div>
-        <h1 className="text-2xl font-bold">SplitRemit</h1>
-        <p className="text-sm text-gray-400">
-          One transaction fans FXRP out to your saved contacts by percentage — the remittance half
-          of Wayafee, and our own audited-by-tests contract.{" "}
-          <a
-            className="text-flare underline"
-            href={`${EXPLORER}/address/${SPLIT_REMIT}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            view on explorer ↗
-          </a>
+        <h1 className="display-serif text-3xl font-semibold sm:text-4xl">Split it</h1>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
+          One transaction fans FXRP out to saved contacts by percentage.
+          {configured && (
+            <>
+              {" "}
+              <a
+                className="font-semibold text-flare underline"
+                href={`${EXPLORER}/address/${SPLIT_REMIT}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View contract
+              </a>
+            </>
+          )}
         </p>
       </div>
+
+      {!configured && (
+        <p className="msg-warn">
+          SplitRemit isn’t on-chain in this build yet. You can still save contacts below. After you
+          deploy, put the contract address in <span className="mono">app/.env.local</span> as{" "}
+          <span className="mono">NEXT_PUBLIC_SPLITREMIT_ADDRESS</span> and restart the app — I
+          won’t touch that file.
+        </p>
+      )}
 
       {!isConnected && (
-        <div className="card p-6 text-center text-gray-400">
-          Connect your Flare wallet above to manage plans.
+        <div className="card space-y-4 p-6 sm:p-8">
+          <div>
+            <p className="text-lg font-extrabold">Connect your Flare wallet</p>
+            <p className="mt-1 text-sm text-muted">Needed to save a plan and run a split. Contacts work without it.</p>
+          </div>
+          <ConnectWallet size="lg" />
         </div>
       )}
 
-      {isConnected && (
-        <div className="grid lg:grid-cols-2 gap-6 items-start">
-          <div className="space-y-6">
-            <ContactsPanel contacts={contacts} setContacts={setContacts} />
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
+          <ContactsPanel contacts={contacts} setContacts={setContacts} />
+          {isConnected && configured ? (
             <CreatePlanPanel contacts={contacts} onCreated={refetch} />
-          </div>
+          ) : configured ? null : (
+            <div className="card p-6 text-sm text-muted">
+              Plans go on-chain once SplitRemit is deployed. Contacts stay in this browser in the
+              meantime.
+            </div>
+          )}
+        </div>
 
-          <div className="space-y-6">
-            {plans.length === 0 ? (
-              <div className="card p-6 text-sm text-gray-500">
-                No active plans yet. Create one on the left — then any incoming mint can be split
-                in a single click.
+        <div className="space-y-6">
+          {!configured ? (
+            <div className="card p-6 text-sm text-muted sm:p-8">
+              Nothing to execute until the contract address is set. Minting still works — split
+              comes online after deploy.
+            </div>
+          ) : !isConnected ? (
+            <div className="card p-6 text-sm text-muted sm:p-8">
+              Connect to load your on-chain plans.
+            </div>
+          ) : plans.length === 0 ? (
+              <div className="card p-6 text-sm text-muted sm:p-8">
+                No active plans yet. Create one on the left — then any incoming mint can be split in
+                a single tap.
               </div>
             ) : (
               plans.map((plan) => (
-                <div key={plan.id.toString()} className="card p-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">{plan.name}</h3>
-                    <span className="text-xs text-gray-500 mono">plan #{plan.id.toString()}</span>
+                <div key={plan.id.toString()} className="card p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-lg font-extrabold">{plan.name}</h3>
+                    <span className="mono shrink-0 text-xs text-muted">#{plan.id.toString()}</span>
                   </div>
-                  <div className="text-xs text-gray-400 mt-2 space-y-1">
+                  <div className="mt-3 space-y-1 text-sm">
                     {plan.recipients.map((r, i) => (
-                      <div key={r} className="flex justify-between">
-                        <span className="mono">{shortAddr(r, 8)}</span>
-                        <span>{plan.sharesBps[i] / 100}%</span>
+                      <div key={r} className="flex justify-between gap-3">
+                        <span className="mono truncate text-muted">{shortAddr(r, 8)}</span>
+                        <span className="font-bold">{plan.sharesBps[i] / 100}%</span>
                       </div>
                     ))}
                   </div>
@@ -454,7 +467,6 @@ export default function SplitPage() {
             )}
           </div>
         </div>
-      )}
-    </div>
+    </PageShell>
   );
 }
