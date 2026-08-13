@@ -3,7 +3,6 @@ import { Plus_Jakarta_Sans, Fraunces, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Header } from "@/components/Header";
-import { MobileNav } from "@/components/MobileNav";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -45,8 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Coston2 testnet · this is play money. Do not send real XRP.
           </div>
           <Header />
-          <main className="min-w-0 flex-1 pb-[5.75rem] md:pb-0">{children}</main>
-          <MobileNav />
+          <main className="min-w-0 flex-1">{children}</main>
         </Providers>
       </body>
     </html>

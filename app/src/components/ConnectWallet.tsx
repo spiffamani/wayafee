@@ -170,11 +170,11 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
       <div className={wide ? "w-full" : ""}>
         <button
           type="button"
-          className={`btn-primary bg-amber ${wide ? "w-full" : "px-4 min-h-10 sm:min-h-12 text-sm"}`}
+          className={`btn-primary bg-amber ${wide ? "w-full" : "min-h-9 px-3 text-xs sm:min-h-10 sm:px-4 sm:text-sm"}`}
           disabled={switching}
           onClick={() => switchChain({ chainId: coston2.id })}
         >
-          {switching ? "Switching…" : "Switch to Coston2"}
+          {switching ? "Switching…" : "Coston2"}
         </button>
         {switchMsg && !switchMsg.toLowerCase().includes("already clicked") && (
           <p className="msg-error mt-2 text-left">{switchMsg}</p>
@@ -185,10 +185,10 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
 
   if (isConnected) {
     return (
-      <div className={`flex items-center gap-2 ${wide ? "w-full flex-col sm:flex-row" : ""}`}>
+      <div className={`flex min-w-0 items-center gap-1.5 sm:gap-2 ${wide ? "w-full flex-col sm:flex-row" : ""}`}>
         <button
           type="button"
-          className={`btn-ghost mono ${wide ? "w-full sm:flex-1" : "px-3 min-h-10 sm:min-h-12 text-sm"}`}
+          className={`btn-ghost mono min-h-9 px-2.5 text-xs sm:min-h-10 sm:px-3 sm:text-sm ${wide ? "w-full sm:flex-1" : ""}`}
           onClick={async () => {
             if (!address) return;
             await navigator.clipboard.writeText(address);
@@ -197,14 +197,14 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
           }}
           title="Copy full address"
         >
-          {copied ? "Copied" : shortAddr(address!)}
+          {copied ? "Copied" : shortAddr(address!, 4)}
         </button>
         <button
           type="button"
-          className="shrink-0 text-xs font-bold text-muted underline"
+          className="shrink-0 text-[11px] font-bold text-muted underline sm:text-xs"
           onClick={() => disconnect()}
         >
-          Disconnect
+          Out
         </button>
       </div>
     );
@@ -214,7 +214,7 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
     <div ref={rootRef} className={`relative ${wide ? "w-full" : ""}`}>
       <button
         type="button"
-        className={`btn-primary ${wide ? "w-full" : "px-4 min-h-10 sm:min-h-12 text-sm"}`}
+        className={`btn-primary ${wide ? "w-full" : "min-h-9 px-3 text-xs sm:min-h-10 sm:px-4 sm:text-sm"}`}
         onClick={() => {
           if (alreadyWaiting || waiting) {
             setOpen(true);

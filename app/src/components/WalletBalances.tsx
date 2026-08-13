@@ -68,7 +68,7 @@ export function WalletBalances({ dark = false }: { dark?: boolean }) {
 
   return (
     <div
-      className={`hidden items-center gap-2 rounded-full px-2.5 py-1 text-xs font-bold sm:flex ${
+      className={`flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-full px-2 py-1 text-[10px] font-bold sm:gap-2 sm:px-2.5 sm:text-xs ${
         dark ? "bg-white/10 text-cream" : "bg-surface text-ink"
       }`}
     >
