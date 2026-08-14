@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import type { Connector } from "wagmi";
 import { coston2 } from "@/lib/chain";
@@ -68,6 +69,15 @@ function findConnector(connectors: readonly Connector[], keys: string[]) {
   return connectors.find((c) => keys.some((k) => blob(c).includes(k)));
 }
 
+function WalletMark({ name }: { name: string }) {
+  const letter = (name.match(/[A-Za-z]/)?.[0] ?? "?").toUpperCase();
+  return (
+    <span className="wallet-mark" aria-hidden="true">
+      {letter}
+    </span>
+  );
+}
+
 export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
   const { address, isConnected, chainId } = useAccount();
   const { connectAsync, connectors, isPending, error, reset } = useConnect();
@@ -75,27 +85,37 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
   const { switchChain, isPending: switching, error: switchError } = useSwitchChain();
 
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
   const [busyName, setBusyName] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [alreadyClicked, setAlreadyClicked] = useState(false);
   const [copied, setCopied] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (open) {
-      const id = window.setTimeout(() => searchRef.current?.focus(), 40);
-      return () => window.clearTimeout(id);
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
     }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!window.matchMedia("(min-width: 640px)").matches) return;
+    const id = window.setTimeout(() => searchRef.current?.focus(), 40);
+    return () => window.clearTimeout(id);
   }, [open]);
 
   useEffect(() => {
@@ -164,6 +184,89 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
   const wide = size === "lg";
   const waiting = isPending || busyName !== null;
 
+  function openPicker() {
+    if (alreadyWaiting || waiting) {
+      setOpen(true);
+      setLocalError(
+        "You already clicked Connect. Check your wallet (fox icon in Chrome) and approve — don’t click Connect again."
+      );
+      return;
+    }
+    setLocalError(null);
+    reset();
+    setOpen(true);
+  }
+
+  const picker =
+    mounted &&
+    open &&
+    createPortal(
+      <>
+        <button
+          type="button"
+          className="wallet-scrim"
+          aria-label="Close wallet list"
+          onClick={() => setOpen(false)}
+        />
+        <div
+          className="wallet-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="wallet-sheet-title"
+        >
+          <span className="wallet-handle" aria-hidden="true" />
+          <div className="wallet-sheet-head">
+            <h2 id="wallet-sheet-title">Connect a wallet</h2>
+            <button type="button" className="wallet-close" onClick={() => setOpen(false)} aria-label="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          <input
+            ref={searchRef}
+            className="input mb-2 min-h-11 text-base sm:min-h-10 sm:text-sm"
+            placeholder="Search MetaMask, Trust, Coinbase…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+
+          {(busyName || alreadyWaiting) && (
+            <p className="msg-warn mb-2">
+              {alreadyWaiting && !busyName
+                ? "You already clicked Connect. Check your wallet and approve — don’t click Connect again."
+                : `Check ${busyName}. Approve in the wallet popup. Don’t click Connect again.`}
+            </p>
+          )}
+
+          <div className="wallet-list">
+            {rows.map((w) => (
+              <button
+                key={w.name}
+                type="button"
+                className="wallet-row"
+                disabled={waiting || alreadyWaiting}
+                onClick={() => void connectNamed(w.name, w.connector)}
+              >
+                <WalletMark name={w.name} />
+                <span className="wallet-row-name">{w.name}</span>
+                <span className="wallet-row-action">{busyName === w.name ? "Waiting" : "Connect"}</span>
+              </button>
+            ))}
+            {rows.length === 0 && (
+              <p className="px-2 py-6 text-center text-sm text-muted">No wallet matches “{query}”.</p>
+            )}
+          </div>
+
+          {shownError && <p className="msg-warn mt-3">{shownError}</p>}
+        </div>
+      </>,
+      document.body
+    );
+
   if (isConnected && chainId !== coston2.id) {
     const switchMsg = switchError ? friendlyError(switchError) : null;
     return (
@@ -211,71 +314,15 @@ export function ConnectWallet({ size = "sm" }: { size?: "sm" | "lg" }) {
   }
 
   return (
-    <div ref={rootRef} className={`relative ${wide ? "w-full" : ""}`}>
+    <div className={wide ? "w-full" : ""}>
       <button
         type="button"
         className={`btn-primary ${wide ? "w-full" : "min-h-9 px-3 text-xs sm:min-h-10 sm:px-4 sm:text-sm"}`}
-        onClick={() => {
-          if (alreadyWaiting || waiting) {
-            setOpen(true);
-            setLocalError(
-              "You already clicked Connect. Check your wallet (fox icon in Chrome) and approve — don’t click Connect again."
-            );
-            return;
-          }
-          setLocalError(null);
-          reset();
-          setOpen((v) => !v);
-        }}
+        onClick={openPicker}
       >
         {waiting ? "Connecting…" : wide ? "Connect wallet" : "Connect"}
       </button>
-
-      {open && (
-        <div className="wallet-pop">
-          <p className="px-1 text-[11px] font-bold uppercase tracking-wide text-muted">
-            Search a wallet
-          </p>
-          <input
-            ref={searchRef}
-            className="input mt-2 mb-2 min-h-10 text-sm"
-            placeholder="Type MetaMask, SafePal, Rabby…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-
-          {(busyName || alreadyWaiting) && (
-            <p className="msg-warn mb-2">
-              {alreadyWaiting && !busyName
-                ? "You already clicked Connect. Check your wallet and approve — don’t click Connect again."
-                : `Check ${busyName}. Approve in the wallet popup. Don’t click Connect again.`}
-            </p>
-          )}
-
-          <div className="wallet-list">
-            {rows.map((w) => (
-              <button
-                key={w.name}
-                type="button"
-                className="wallet-row"
-                disabled={waiting || alreadyWaiting}
-                onClick={() => void connectNamed(w.name, w.connector)}
-              >
-                <span>{w.name}</span>
-                <span className="text-xs font-bold text-muted">
-                  {busyName === w.name ? "Waiting…" : "Connect"}
-                </span>
-              </button>
-            ))}
-            {rows.length === 0 && (
-              <p className="px-2 py-3 text-sm text-muted">No wallet matches “{query}”.</p>
-            )}
-          </div>
-
-          {shownError && <p className="msg-warn mt-3">{shownError}</p>}
-        </div>
-      )}
-
+      {picker}
       {!open && shownError && wide && <p className="msg-warn mt-3">{shownError}</p>}
     </div>
   );
